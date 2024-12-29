@@ -65,9 +65,72 @@ public class UserController : ControllerBase
     }
 
     [HttpPost("AddUser")]
-    public IActionResult AddUser()
+    public IActionResult AddUser(User user)
     {
-        return Ok();
+          // Input validation
+        if (user == null)
+        {
+            return BadRequest("User data is required");
+        }
+
+        if (string.IsNullOrEmpty(user.Email) || string.IsNullOrEmpty(user.FirstName) || string.IsNullOrEmpty(user.LastName))
+        {
+            return BadRequest("Required fields (Email, FirstName, LastName) cannot be empty");
+        }
+
+        // Email validation
+        if (!IsValidEmail(user.Email))
+        {
+            return BadRequest("Invalid email format");
+        }
+        string checkSql = @"
+            SELECT Email 
+            FROM ComputerStoreAppSchema.Users 
+            WHERE Email = @Email";
+
+        var existingUsers = _dapper.LoadDataWithParameters<string>(checkSql, new { user.Email });
+        if (existingUsers.Any())
+        {
+            return Conflict("A user with this email already exists");
+        }
+
+        string sql = @"
+            INSERT INTO ComputerStoreAppSchema.Users
+                ([FirstName],[LastName],[Email],[Gender],[Active])
+            VALUES
+            (   
+                @FirstName,
+                @LastName,
+                @Email,
+                @Gender,
+                @Active
+            )";
+
+        var parameters = new
+        {
+            user.FirstName,
+            user.LastName,
+            user.Email,
+            user.Gender,
+            user.Active
+        };
+
+        try 
+        {
+            int rowsAffected = _dapper.ExecuteSqlWithRowCount(sql, parameters);
+            if (rowsAffected > 0)
+            {
+                return Ok("User added successfully");
+            }
+            return StatusCode(500, "Failed to add user");
+        }
+        catch(Exception ex)
+        {
+            // _logger.LogError(ex, "Error occurred while adding user: {Email}", user.Email);
+            Console.WriteLine(ex.Message);
+            return StatusCode(500, "An error occurred while processing your request");
+        }
+    
     }
 
     [HttpPut("UpdateUser")]
@@ -103,5 +166,18 @@ public class UserController : ControllerBase
 
         throw new Exception("Failed to update user");
         
+    }
+
+    private bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }
