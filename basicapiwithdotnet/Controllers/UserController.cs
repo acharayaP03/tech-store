@@ -1,7 +1,5 @@
-
-
-
 using basicapiwithdotnet.DataAccess;
+using basicapiwithdotnet.Dtos;
 using basicapiwithdotnet.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -65,7 +63,7 @@ public class UserController : ControllerBase
     }
 
     [HttpPost("AddUser")]
-    public IActionResult AddUser(User user)
+    public IActionResult AddUser(UserDto user)
     {
           // Input validation
         if (user == null)
@@ -166,6 +164,52 @@ public class UserController : ControllerBase
 
         throw new Exception("Failed to update user");
         
+    }
+
+    [HttpDelete("DeleteUser/{userId}")]
+    public IActionResult DeleteUser(int userId)
+    {
+
+    if (userId <= 0)
+    {
+        return BadRequest("Invalid user ID");
+    }
+
+    // First check if user exists
+    string checkSql = @"
+        SELECT UserId 
+        FROM ComputerStoreAppSchema.Users 
+        WHERE UserId = @UserId";
+
+    try 
+    {
+        var existingUsers = _dapper.LoadDataWithParameters<int>(checkSql, new { UserId = userId });
+        
+        if (!existingUsers.Any())
+        {
+            return NotFound($"User with ID {userId} not found");
+        }
+
+        string sql = @"
+            DELETE FROM ComputerStoreAppSchema.Users 
+            WHERE UserId = @UserId";
+
+        int rowsAffected = _dapper.ExecuteSqlWithRowCount(sql, new { UserId = userId });
+
+        if (rowsAffected > 0)
+        {
+            return Ok($"User {userId} successfully deleted");
+        }
+
+        return StatusCode(500, "Failed to delete user");
+    }
+    catch (Exception ex)
+    {
+        // Log the exception here
+        Console.WriteLine(ex.Message);
+        return StatusCode(500, "An error occurred while deleting the user");
+    }
+
     }
 
     private bool IsValidEmail(string email)
